@@ -76,7 +76,10 @@ static std::unordered_set<size_t>                                reported_stacks
 static std::set<std::pair<CRITICAL_SECTION*, CRITICAL_SECTION*>> overlay_reported;
 
 static bool      lock_dependency_checks_enabled;
+
+// TODO: If we get any more of these put them in a list
 static uintptr_t ntdll_base, ntdll_end;
+static uintptr_t apphelp_base, apphelp_end;
 
 static std::unordered_map<CRITICAL_SECTION*, std::string> lock_names;
 
@@ -359,7 +362,15 @@ static bool ignore_caller(
     // might be something else going on with this lock that we aren't
     // seeing. For now, consider these (likely) false positives and ignore
     // them, so that the reports that we do get will be more relevant.
-    return (ret >= ntdll_base && ret < ntdll_end);
+    if (ret >= ntdll_base && ret < ntdll_end)
+        return true;
+
+    // apphelp.dll shows up in SkyrimVR with similar false positives to
+    // the above. It looks like this may use additional locking methods
+    // such as LeaveCriticalSectionWhenCallbackReturns and Rtl variants
+    // that we aren't hooking yet, so it's possible we just miss some
+    // cases when the dll releases its lock.
+    return (ret >= apphelp_base && ret < apphelp_end);
 }
 
 static void EnterCriticalSectionHook(
@@ -531,7 +542,7 @@ void _InitializeCriticalSectionPretty(
 void enable_lock_dependency_checks()
 {
     SIZE_T     hook_id;
-    HMODULE    ntdll;
+    HMODULE    mod_handle;
     MODULEINFO mod_info;
 
     if (lock_dependency_checks_enabled)
@@ -540,10 +551,18 @@ void enable_lock_dependency_checks()
 
     INIT_CRITICAL_SECTION(&graph_lock);
 
-    if ((ntdll = GetModuleHandleA("ntdll.dll")) && GetModuleInformation(GetCurrentProcess(), ntdll, &mod_info, sizeof(MODULEINFO)))
+    if ((mod_handle = GetModuleHandleA("ntdll.dll"))
+      && GetModuleInformation(GetCurrentProcess(), mod_handle, &mod_info, sizeof(MODULEINFO)))
     {
         ntdll_base = reinterpret_cast<uintptr_t>(mod_info.lpBaseOfDll);
         ntdll_end  = ntdll_base + mod_info.SizeOfImage;
+    }
+
+    if ((mod_handle = GetModuleHandleA("apphelp.dll"))
+        && GetModuleInformation(GetCurrentProcess(), mod_handle, &mod_info, sizeof(MODULEINFO)))
+    {
+        apphelp_base = (uintptr_t)mod_info.lpBaseOfDll;
+        apphelp_end = apphelp_base + mod_info.SizeOfImage;
     }
 
     // Deviare will itself take locks while we are hooking, so protect against re-entrancy:
