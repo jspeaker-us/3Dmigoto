@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 
+#include <stdexcept>
 typedef enum
 {
     LANG_DEFAULT,// Depends on the HLSL shader model.

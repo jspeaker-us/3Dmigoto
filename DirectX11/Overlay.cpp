@@ -6,6 +6,8 @@
 #include <DirectXColors.h>
 //#include <StrSafe.h>
 
+#include <stdexcept>
+
 #include "SimpleMath.h"
 #include "SpriteBatch.h"
 
