@@ -4,7 +4,7 @@
 #include <string>
 #include <nvapi.h>
 
-namespace Profiling {
+namespace   Profiling {
 	enum class Mode {
 		NONE = 0,
 		SUMMARY,
